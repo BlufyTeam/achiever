@@ -1,5 +1,9 @@
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import { type DefaultSession, type NextAuthOptions } from "next-auth";
+import {
+  getServerSession,
+  type DefaultSession,
+  type NextAuthOptions,
+} from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 
@@ -27,7 +31,6 @@ export const authConfig: NextAuthOptions = {
   },
   providers: [
     CredentialsProvider({
-      name: "Credentials",
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
@@ -41,15 +44,11 @@ export const authConfig: NextAuthOptions = {
           where: { email: credentials.email },
         });
 
-        if (!user || !user.password) return null;
+        if (user) {
+          if (user.password === credentials.password) return user;
+        }
+        return null;
         //chage below line
-        const isValid = await bcrypt.compare(
-          "" + credentials.password,
-          user.password,
-        );
-        if (!isValid) return null;
-
-        return user;
       },
     }),
   ],
@@ -66,4 +65,9 @@ export const authConfig: NextAuthOptions = {
       return token;
     },
   },
+  pages: {
+    signIn: "/login", // this will allow us to use our own login page
+  },
 };
+
+export const getServerAuthSession = () => getServerSession(authConfig);
