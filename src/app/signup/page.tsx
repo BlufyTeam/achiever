@@ -8,63 +8,82 @@ import { Button } from "~/components/ui/button";
 import { LoaderCircleIcon, EyeIcon, EyeOffIcon } from "lucide-react";
 import ErrorLabel from "../_components/origin/ErrorLabel";
 import Link from "next/link";
+import { api } from "~/trpc/react";
 
-export default function LoginPage() {
+export default function SignupPage() {
   const { data: session, status } = useSession();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [Email, setEmail] = useState("");
+  const [Password, setPassword] = useState("");
+  const [Name, setName] = useState("");
   const [isVisible, setIsVisible] = useState<boolean>(false);
   const [isWorng, setIsWrong] = useState<boolean>(false);
 
   const toggleVisibility = () => setIsVisible((prevState) => !prevState);
   const id = useId();
-  const handleSubmit = async (Username: string, Password: string) => {
-    const res = await signIn("credentials", {
-      email: Username,
-      password: Password,
-      callbackUrl: "",
-      redirect: false,
-    });
-    if (res?.error) {
-      setIsWrong(true);
-    } else {
+  const signupMutation = api.signup.signup.useMutation({
+    onSuccess: (data) => {
+      console.log("Signup successful:", data);
       setIsWrong(false);
-    }
+    },
+    onError: (error) => {
+      console.log(error);
+      setIsWrong(true);
+    },
+  });
+
+  const handleSubmit = async () => {
+    signupMutation.mutate({
+      email: Email,
+      password: Password,
+      name: Name,
+    });
   };
+
+  useEffect(() => {
+    console.log(session);
+  }, [session]);
 
   return (
     <div className="flex h-full w-full items-center justify-center">
       <Cardview>
         <div className="mb-5 flex justify-center">
-          <h1 className="text-2xl">Login</h1>
+          <h1 className="text-2xl">SignUp</h1>
         </div>
-        <ErrorLabel
-          msg="Username or password is incorrect!!"
-          show={isWorng}
-        ></ErrorLabel>
+
+        <ErrorLabel msg="Something went wrong" show={isWorng}></ErrorLabel>
         <Label htmlFor={id}>Email</Label>
         <Input
           onChange={(value) => {
-            setUsername(value.target.value);
+            setEmail("" + value.target.value);
           }}
           id={id}
           placeholder="Email"
           type="email"
-          className="mt-2"
         />
+        <div>
+          <Label htmlFor={id}>Name</Label>
+          <Input
+            onChange={(value) => {
+              setName("" + value.target.value);
+            }}
+            id={id}
+            placeholder="Name"
+            type="text"
+          />
+        </div>
+
         <div className="mt-5 *:not-first:mt-2">
           <Label htmlFor={id}>Password</Label>
           <div className="relative mt-2">
             <Input
               className="pe-9"
               onChange={(value) => {
-                setPassword(value.target.value);
+                setPassword("" + value.target.value);
               }}
               id={id}
               placeholder="Password"
               type={isVisible ? "text" : "password"}
             />
-
             <button
               className="text-muted-foreground/80 hover:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 absolute inset-y-0 end-0 flex h-full w-9 items-center justify-center rounded-e-md transition-[color,box-shadow] outline-none focus:z-10 focus-visible:ring-[3px] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
               type="button"
@@ -80,12 +99,19 @@ export default function LoginPage() {
               )}
             </button>
           </div>
+          <Input
+            className="pe-9"
+            onChange={(value) => {}}
+            id={id}
+            placeholder="Confirm Password"
+            type="password"
+          />
         </div>
 
         <div className="mt-10 flex w-full justify-center">
           <Button
             onClick={() => {
-              handleSubmit(username, password);
+              handleSubmit();
             }}
             className="min-h-12 w-full rounded-full"
           >
@@ -96,13 +122,13 @@ export default function LoginPage() {
                 aria-hidden="true"
               />
             ) : null}
-            Login
+            Submit
           </Button>
         </div>
         <div className="mt-2 flex">
-          <p>Do not have an account? </p>
-          <Link href={"/signup"} className="text-blue-500">
-            Signup
+          <p>Already have an account?</p>
+          <Link href={"/login"} className="text-blue-500">
+            Login
           </Link>
         </div>
       </Cardview>

@@ -36,7 +36,8 @@ export const authConfig: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        console.log("CREDENTIALS", credentials);
+        //console.log("CREDENTIALS", credentials);
+
         if (!credentials?.email || !credentials?.password) return null;
 
         const user = await db.user.findFirst({

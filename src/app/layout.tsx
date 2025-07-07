@@ -76,7 +76,7 @@ export default function RootLayout({
     >
       {/* <Script src="https://unpkg.com/react-scan/dist/auto.global.js" /> */}
 
-      <body className="scrollbar-track-[var(--accent)] relative min-h-[100dvh]">
+      <body className="scrollbar-track-[var(--accent)] relative h-full min-h-[100dvh] bg-gradient-to-b from-[#cc7135] to-[#15162c]">
         {/* <DatabaseStatus /> */}
         <Providers>
           <div id="overlay"></div>
