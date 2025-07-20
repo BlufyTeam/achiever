@@ -2,13 +2,15 @@ import "~/styles/globals.css";
 
 import localFont from "next/font/local";
 import { TRPCReactProvider } from "~/trpc/react";
-
+import { api } from "~/trpc/react";
 import { Providers } from "~/app/providers";
 import type { Metadata } from "next";
+import NavBar from "./_components/NavBar";
+import TabBar from "./_components/TabBar";
 
 export const metadata: Metadata = {
-  title: "Archive",
-  description: "Archive",
+  title: "Achiever",
+  description: "Achiever",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
 };
 const iranSans = localFont({
@@ -72,11 +74,11 @@ export default function RootLayout({
     <html
       suppressHydrationWarning
       lang="fa"
-      className={`${iranSans.variable} font-iransans h-full`}
+      className={`${iranSans.variable} font-iransans min-h-screen`}
     >
       {/* <Script src="https://unpkg.com/react-scan/dist/auto.global.js" /> */}
 
-      <body className="scrollbar-track-[var(--accent)] relative h-full min-h-[100dvh] bg-gradient-to-b from-[#cc7135] to-[#15162c]">
+      <body className="scrollbar-track-[var(--accent)] bg-background-gradient relative">
         {/* <DatabaseStatus /> */}
         <Providers>
           <div id="overlay"></div>
@@ -99,14 +101,10 @@ export default function RootLayout({
           <div id="toast"></div>
 
           <TRPCReactProvider>
-            {/* <Header /> */}
+            <NavBar></NavBar>
+            <TabBar></TabBar>
 
-            {children}
-            {/* {process.env.NODE_ENV === "development" && <ScreenSize />} */}
-
-            {/* <Toaster />
-            <Footer />
-            <UserNav /> */}
+            <main className="min-h-[calc(100vh-120px)]">{children}</main>
           </TRPCReactProvider>
         </Providers>
       </body>

@@ -1,4 +1,5 @@
 import { PrismaAdapter } from "@auth/prisma-adapter";
+import type { Adapter } from "next-auth/adapters";
 import {
   getServerSession,
   type DefaultSession,
@@ -17,15 +18,28 @@ declare module "next-auth" {
   interface Session extends DefaultSession {
     user: {
       id: string;
+      role: "USER" | "ADMIN";
     } & DefaultSession["user"];
   }
+
+  interface User {
+    role: "USER" | "ADMIN";
+  }
 }
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    id: string;
+    role: "USER" | "ADMIN";
+  }
+}
+const adapter = PrismaAdapter(db) as Adapter;
 
 /**
  * NextAuth configuration using Prisma + Credentials provider.
  */
 export const authConfig: NextAuthOptions = {
-  adapter: PrismaAdapter(db),
+  adapter,
   session: {
     strategy: "jwt",
   },
@@ -36,34 +50,42 @@ export const authConfig: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        //console.log("CREDENTIALS", credentials);
-
         if (!credentials?.email || !credentials?.password) return null;
 
         const user = await db.user.findFirst({
-          //change below line
           where: { email: credentials.email },
         });
 
-        if (user) {
-          if (user.password === credentials.password) return user;
-        }
-        return null;
-        //chage below line
+        if (!user || !user.password) return null;
+
+        const isValid = await bcrypt.compare(
+          credentials.password,
+          user.password,
+        );
+        if (!isValid) return null;
+
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          image: user.image ?? null,
+          role: user.role,
+        };
       },
     }),
   ],
   callbacks: {
-    session: ({ session, token }) => ({
-      ...session,
-      user: {
-        ...session.user,
-        id: token.sub ?? "",
-      },
-    }),
-    jwt: async ({ token, user }) => {
-      if (user) token.id = user.id;
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.role = (user as any).role;
+      }
       return token;
+    },
+    async session({ session, token }) {
+      session.user.id = token.sub ?? "";
+      session.user.role = token.role as "USER" | "ADMIN"; // 👈 role into session
+      return session;
     },
   },
   pages: {

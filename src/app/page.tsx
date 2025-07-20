@@ -1,5 +1,10 @@
-export default async function Home() {
-  return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-[#cc7135] to-[#15162c] text-white"></main>
-  );
+"use client";
+import { signIn, signOut, useSession } from "next-auth/react";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+export default function HomePage() {
+  const router = useRouter();
+
+  return <div className="h-full"></div>;
 }
