@@ -1,6 +1,6 @@
 "use client";
 import { useSession } from "next-auth/react";
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import { useFormik } from "formik";
 import { z } from "zod";
 import Cardview from "../_components/origin/cardview";
@@ -13,9 +13,20 @@ import Link from "next/link";
 import { api } from "~/trpc/react";
 import { useRouter } from "next/navigation";
 
-// ✅ Zod schema with password match validation
+// ✅ Username schema consistent with server
+const usernameSchema = z
+  .string()
+  .min(3, "Username must be at least 3 characters")
+  .max(30, "Username must be at most 30 characters")
+  .regex(
+    /^[a-zA-Z0-9_]+$/,
+    "Only letters, numbers, and underscore are allowed",
+  );
+
+// ✅ Zod schema with password match + username
 const signupSchema = z
   .object({
+    username: usernameSchema,
     email: z.string().email("Invalid email"),
     name: z.string().min(2, "Name is too short"),
     password: z.string().min(6, "Password must be at least 6 characters"),
@@ -33,13 +44,13 @@ const validateWithZod = (schema: typeof signupSchema) => (values: any) => {
   const errors: Record<string, string> = {};
   result.error.issues.forEach((issue) => {
     const path = issue.path[0];
-    if (path) errors[path] = issue.message;
+    if (path) errors[path as string] = issue.message;
   });
   return errors;
 };
 
 export default function SignupPage() {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const router = useRouter();
   const [isVisible, setIsVisible] = useState(false);
   const [isWrong, setIsWrong] = useState(false);
@@ -47,9 +58,8 @@ export default function SignupPage() {
 
   const toggleVisibility = () => setIsVisible((prev) => !prev);
 
-  const signupMutation = api.signup.signup.useMutation({
-    onSuccess: (data) => {
-      console.log("Signup successful:", data);
+  const signupMutation = api.user.signup.useMutation({
+    onSuccess: () => {
       setIsWrong(false);
       router.push("/login");
     },
@@ -61,6 +71,7 @@ export default function SignupPage() {
 
   const formik = useFormik({
     initialValues: {
+      username: "", // 👈 NEW
       email: "",
       name: "",
       password: "",
@@ -69,6 +80,7 @@ export default function SignupPage() {
     validate: validateWithZod(signupSchema),
     onSubmit: async (values, { setSubmitting }) => {
       signupMutation.mutate({
+        username: values.username, // 👈 pass username
         email: values.email,
         password: values.password,
         name: values.name,
@@ -87,6 +99,22 @@ export default function SignupPage() {
         <form onSubmit={formik.handleSubmit} className="flex flex-col gap-2">
           <ErrorLabel msg="Something went wrong" show={isWrong} />
 
+          {/* 👇 Username FIRST (required) */}
+          <Label htmlFor={`${id}-username`}>Username</Label>
+          <Input
+            id={`${id}-username`}
+            name="username"
+            type="text"
+            placeholder="Username"
+            value={formik.values.username}
+            onChange={formik.handleChange}
+            onBlur={formik.handleBlur}
+            autoComplete="username"
+          />
+          {formik.touched.username && formik.errors.username && (
+            <ErrorLabel msg={formik.errors.username} show />
+          )}
+
           <Label htmlFor={`${id}-email`}>Email</Label>
           <Input
             id={`${id}-email`}
@@ -96,20 +124,22 @@ export default function SignupPage() {
             value={formik.values.email}
             onChange={formik.handleChange}
             onBlur={formik.handleBlur}
+            autoComplete="email"
           />
           {formik.touched.email && formik.errors.email && (
             <ErrorLabel msg={formik.errors.email} show />
           )}
 
-          <Label htmlFor={`${id}-name`}>Name</Label>
+          <Label htmlFor={`${id}-name`}>Full Name</Label>
           <Input
             id={`${id}-name`}
             name="name"
             type="text"
-            placeholder="Name"
+            placeholder="Full Name"
             value={formik.values.name}
             onChange={formik.handleChange}
             onBlur={formik.handleBlur}
+            autoComplete="name"
           />
           {formik.touched.name && formik.errors.name && (
             <ErrorLabel msg={formik.errors.name} show />
@@ -126,6 +156,7 @@ export default function SignupPage() {
               value={formik.values.password}
               onChange={formik.handleChange}
               onBlur={formik.handleBlur}
+              autoComplete="new-password"
             />
             <button
               type="button"
@@ -153,6 +184,7 @@ export default function SignupPage() {
             value={formik.values.confirmPassword}
             onChange={formik.handleChange}
             onBlur={formik.handleBlur}
+            autoComplete="new-password"
           />
           {formik.touched.confirmPassword && formik.errors.confirmPassword && (
             <ErrorLabel msg={formik.errors.confirmPassword} show />

@@ -1,37 +1,48 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-
 enum Role {
   USER
   ADMIN
 }
 
+enum GiftStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+enum MedalStatus {
+  EARNABLE     // can be earned normally (e.g., via tasks)
+  GIFT_ONLY    // can only be gifted, not earned
+  UNAVAILABLE  // cannot be obtained at all
+}
+
 generator client {
-    provider = "prisma-client-js"
+  provider = "prisma-client-js"
 }
 
 datasource db {
-    provider = "postgresql"
-    // NOTE: When using mysql or sqlserver, uncomment the @db.Text annotations in model Account below
-    // Further reading:
-    // https://next-auth.js.org/adapters/prisma#create-the-prisma-schema
-    // https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#string
-    url      = env("DATABASE_URL")
+  provider = "postgresql"
+  // NOTE: When using mysql or sqlserver, uncomment the @db.Text annotations in model Account below
+  // Further reading:
+  // https://next-auth.js.org/adapters/prisma#create-the-prisma-schema
+  // https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#string
+  url      = env("DATABASE_URL")
 }
+
 model Account {
-  id                String  @id @default(cuid())
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String?
-  access_token      String?
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String?
-  session_state     String?
+  id                       String  @id @default(cuid())
+  userId                   String
+  type                     String
+  provider                 String
+  providerAccountId        String
+  refresh_token            String?
+  access_token             String?
+  expires_at               Int?
+  token_type               String?
+  scope                    String?
+  id_token                 String?
+  session_state            String?
   refresh_token_expires_in Int?
 
   @@unique([provider, providerAccountId])
@@ -45,20 +56,31 @@ model Session {
 }
 
 model User {
-  id            String   @id @default(cuid())
-  name          String?
-  email         String?  @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  role          Role     @default(USER) // 👈 NEW
-
-  medals        UserMedal[]
+  id                 String              @id @default(cuid())
+  name               String
+  username           String              @unique
+  email              String              @unique
+  emailVerified      DateTime?
+  image              String?
+  password           String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  isPublicProfile    Boolean             @default(true)
+  role               Role                @default(USER)
+  trackedMedals      TrackedMedal[]
+  medals             UserMedal[]         @relation("UserMedals")
+  assignedMedals     UserMedal[]         @relation("AssignedMedals")
+  receivedGifts      GiftedMedal[]       @relation("GiftedTo")
+  sentGifts          GiftedMedal[]       @relation("GiftedBy")
+  givenVouches       UserMedalVouch[]    @relation("GivenVouches")
+  receivedVouches    UserMedalVouch[]    @relation("ReceivedVouches")
+  tasks              UserTask[] // 👈 Add this to complete the relation
+  collections        Collection[]
+  trackedCollections TrackedCollection[]
+  giftedMedals       UserMedal[]         @relation("GiftedMedals")
+    following     Follow[] @relation("Following") // Users this user follows
+  followers     Follow[] @relation("Followers") // Users following this user
 }
-
 
 model VerificationToken {
   identifier String
@@ -69,15 +91,21 @@ model VerificationToken {
 }
 
 model Medal {
-  id          String        @id @default(cuid())
+  id          String   @id @default(cuid())
   name        String
   description String?
   image       String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  categories  CategoryMedal[] // 👈 many-to-many with categories
-  users       UserMedal[]     // 👈 many-to-many with users
+  categories     CategoryMedal[] // 👈 many-to-many with categories
+  users          UserMedal[] // 👈 many-to-many with users
+  tasks          Task[]
+  trackedByUsers TrackedMedal[]
+  collections    CollectionMedal[]
+  giftedMedals   GiftedMedal[]
+    status      MedalStatus @default(EARNABLE)  // 👈 new field
+  price       Int?    
 }
 
 model Category {
@@ -85,28 +113,163 @@ model Category {
   name      String
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
-
+  image     String?
   medals    CategoryMedal[] // 👈 many-to-many with medals
 }
 
 model UserMedal {
+  user   User   @relation("UserMedals", fields: [userId], references: [id])
+  userId String
+
+  medal   Medal  @relation(fields: [medalId], references: [id])
+  medalId String
+sortOrder  Int      @default(0)
+  earnedAt DateTime @default(now())
+  note     String?
+
+  assignedBy   User?   @relation("AssignedMedals", fields: [assignedById], references: [id])
+  assignedById String?
+
+  giftedBy   User?   @relation("GiftedMedals", fields: [giftedById], references: [id])
+  giftedById String?
+
+  vouches UserMedalVouch[]
+
+  @@id([userId, medalId])
+}
+
+model CategoryMedal {
+  category   Category @relation(fields: [categoryId], references: [id])
+  categoryId String
+  medal      Medal    @relation(fields: [medalId], references: [id])
+  medalId    String
+
+  @@id([categoryId, medalId]) // composite primary key
+}
+
+model UserMedalVouch {
+  id String @id @default(cuid())
+
+  userMedal UserMedal @relation(fields: [userId, medalId], references: [userId, medalId])
+  userId    String
+  medalId   String
+
+  vouchedBy   User   @relation("GivenVouches", fields: [vouchedById], references: [id])
+  vouchedById String
+
+  receivedBy User @relation("ReceivedVouches", fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([vouchedById, userId, medalId]) // prevent duplicate vouches
+}
+
+model Task {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  medal   Medal  @relation(fields: [medalId], references: [id])
+  medalId String
+
+  userTasks UserTask[]
+}
+
+model UserTask {
+  id     String @id @default(cuid())
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
+
+  task   Task   @relation(fields: [taskId], references: [id])
+  taskId String
+
+  completedAt DateTime @default(now())
+
+  @@unique([userId, taskId]) // Prevent duplicate completions
+}
+
+model TrackedMedal {
+  id     String @id @default(cuid())
   user   User   @relation(fields: [userId], references: [id])
   userId String
 
   medal   Medal  @relation(fields: [medalId], references: [id])
   medalId String
 
-  earnedAt DateTime @default(now())
+  startedAt DateTime @default(now())
 
-  @@id([userId, medalId]) // composite primary key
+  @@unique([userId, medalId]) // prevent tracking the same medal twice
 }
 
-model CategoryMedal {
-  category   Category @relation(fields: [categoryId], references: [id])
-  categoryId String
+model Collection {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  image       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  isPublic    Boolean  @default(true)
+  owner       User     @relation(fields: [ownerId], references: [id])
+  ownerId     String
 
-  medal   Medal @relation(fields: [medalId], references: [id])
+  medals    CollectionMedal[] // many-to-many relation to Medal
+  trackedBy TrackedCollection[] // users tracking this collection
+}
+
+model CollectionMedal {
+  collection   Collection @relation(fields: [collectionId], references: [id])
+  collectionId String
+
+  medal   Medal  @relation(fields: [medalId], references: [id])
   medalId String
 
-  @@id([categoryId, medalId]) // composite primary key
+  @@id([collectionId, medalId]) // composite primary key to prevent duplicates
+}
+
+model TrackedCollection {
+  id     String @id @default(cuid())
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
+
+  collection   Collection @relation(fields: [collectionId], references: [id])
+  collectionId String
+
+  startedAt DateTime @default(now())
+
+  @@unique([userId, collectionId]) // prevent tracking same collection multiple times
+}
+
+model GiftedMedal {
+  id String @id @default(cuid())
+
+  medal   Medal  @relation(fields: [medalId], references: [id])
+  medalId String
+
+  giftedBy   User   @relation("GiftedBy", fields: [giftedById], references: [id])
+  giftedById String
+
+  giftedTo   User   @relation("GiftedTo", fields: [giftedToId], references: [id])
+  giftedToId String
+
+  message    String?
+  status     GiftStatus @default(PENDING) // 👈 ENUM: pending, accepted, rejected
+  createdAt  DateTime   @default(now())
+  acceptedAt DateTime?
+
+  @@unique([giftedToId, medalId]) // Prevent duplicate gifting to same user
+}
+model Follow {
+  id String @id @default(cuid())
+
+  follower   User   @relation("Following", fields: [followerId], references: [id])
+  followerId String
+
+  following   User   @relation("Followers", fields: [followingId], references: [id])
+  followingId String
+
+  createdAt DateTime @default(now())
+
+  @@unique([followerId, followingId]) // prevent duplicate follows
 }

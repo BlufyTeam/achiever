@@ -13,16 +13,11 @@ import {
   PopoverTrigger,
 } from "~/components/ui/popover";
 import { useSession } from "next-auth/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import UserMenu from "./navBar/user-menu";
 import NotificationMenu from "./navBar/notification-menu";
 import { api } from "~/trpc/react";
 import { Skeleton } from "~/components/ui/skeleton";
-const navigationLinks = [
-  { href: "/", label: "Home" },
-  { href: "/explore", label: "Explore" },
-  { href: "/about", label: "About" },
-];
 
 export default function NavBar() {
   const pathname = usePathname();
@@ -30,17 +25,33 @@ export default function NavBar() {
     data: userData,
     isLoading: isUserLoading,
     status,
-  } = api.signup.getCurrentUser.useQuery();
+  } = api.user.getCurrentUser.useQuery();
   const [profileImage, setProfileImage] = useState<string>(
     "/images/default.png",
   );
 
   useEffect(() => {
-    if (userData)
-      if (userData?.image) {
-        setProfileImage(userData?.image);
-      }
+    if (userData?.image) {
+      setProfileImage(userData.image);
+    } else {
+      setProfileImage("/images/default.png");
+    }
   }, [userData]);
+
+  // Use useMemo to create the dynamic navigation links
+  const navigationLinks = useMemo(() => {
+    // Check if user data is available and has a username
+    const profileHref = userData?.username
+      ? `/u/${userData.username}`
+      : "/login";
+
+    return [
+      { href: "/", label: "Home" },
+      { href: "/explore", label: "Explore" },
+      { href: profileHref, label: "Profile" },
+      { href: "/about", label: "About" },
+    ];
+  }, [userData]); // Re-run this memoization when userData changes
 
   return (
     <header className="bg-secondary hidden border-b px-4 md:block md:px-6">

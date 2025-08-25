@@ -5,9 +5,11 @@ import {
   ChevronDown,
   ChevronRight,
   Medal,
-  FolderPlus,
+  Logs,
   ChevronsLeft,
   ChevronsRight,
+  Users,
+  FileClock,
 } from "lucide-react";
 
 type SidebarProps = {
@@ -18,6 +20,8 @@ export default function Sidebar({ onSelect }: SidebarProps) {
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
     medals: false,
     categories: false,
+    users: false,
+    reports: false,
   });
 
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -42,7 +46,7 @@ export default function Sidebar({ onSelect }: SidebarProps) {
 
       {/* Sidebar */}
       <aside
-        className={`min-h-screen ${
+        className={`min-h-full ${
           isCollapsed ? "w-14" : "w-64"
         } border-r bg-white p-4 shadow-sm transition-all duration-300`}
       >
@@ -51,9 +55,13 @@ export default function Sidebar({ onSelect }: SidebarProps) {
           <div>
             <button
               onClick={() => toggleMenu("medals")}
-              className="flex w-full items-center rounded px-2 py-2 text-left hover:bg-gray-100"
+              className={`flex w-full items-center rounded px-2 py-2 text-left hover:bg-gray-100 ${
+                isCollapsed ? "justify-center" : ""
+              }`}
             >
-              <Medal className="mr-2 h-5 w-5" />
+              <Medal
+                className={`${isCollapsed ? "h-6 w-6" : "h-5 w-5"} ${isCollapsed ? "mr-0" : "mr-2"}`}
+              />
               {!isCollapsed && (
                 <>
                   <span className="flex-1">Medals</span>
@@ -71,13 +79,19 @@ export default function Sidebar({ onSelect }: SidebarProps) {
                   onClick={() => onSelect("medals-create")}
                   className="block w-full text-left text-sm text-gray-700 hover:text-black"
                 >
-                  ➕ Create Medal
+                  - Create Medal
                 </button>
                 <button
                   onClick={() => onSelect("medals-all")}
                   className="block w-full text-left text-sm text-gray-700 hover:text-black"
                 >
-                  📋 All Medals
+                  - All Medals
+                </button>
+                <button
+                  onClick={() => onSelect("collection")}
+                  className="block w-full text-left text-sm text-gray-700 hover:text-black"
+                >
+                  - Collections
                 </button>
               </div>
             )}
@@ -86,14 +100,52 @@ export default function Sidebar({ onSelect }: SidebarProps) {
           {/* Categories */}
           <div>
             <button
-              onClick={() => toggleMenu("categories")}
-              className="flex w-full items-center rounded px-2 py-2 text-left hover:bg-gray-100"
+              onClick={() => onSelect("categories-all")}
+              className={`flex w-full items-center rounded px-2 py-2 text-left hover:bg-gray-100 ${
+                isCollapsed ? "justify-center" : ""
+              }`}
             >
-              <FolderPlus className="mr-2 h-5 w-5" />
+              <Logs
+                className={`${isCollapsed ? "h-6 w-6" : "h-5 w-5"} ${isCollapsed ? "mr-0" : "mr-2"}`}
+              />
               {!isCollapsed && (
                 <>
                   <span className="flex-1">Categories</span>
-                  {openMenus.categories ? (
+                </>
+              )}
+            </button>
+          </div>
+          {/* users */}
+          <div>
+            <button
+              onClick={() => {
+                onSelect("users-all");
+              }}
+              className={`flex w-full items-center rounded px-2 py-2 text-left hover:bg-gray-100 ${
+                isCollapsed ? "justify-center" : ""
+              }`}
+            >
+              <Users
+                className={`${isCollapsed ? "h-6 w-6" : "h-5 w-5"} ${isCollapsed ? "mr-0" : "mr-2"}`}
+              />
+              {!isCollapsed && <span className="flex-1">Users</span>}
+            </button>
+          </div>
+          {/*reports */}
+          <div>
+            <button
+              onClick={() => toggleMenu("reports")}
+              className={`flex w-full items-center rounded px-2 py-2 text-left hover:bg-gray-100 ${
+                isCollapsed ? "justify-center" : ""
+              }`}
+            >
+              <FileClock
+                className={`${isCollapsed ? "h-6 w-6" : "h-5 w-5"} ${isCollapsed ? "mr-0" : "mr-2"}`}
+              />
+              {!isCollapsed && (
+                <>
+                  <span className="flex-1">Reports</span>
+                  {openMenus.reports ? (
                     <ChevronDown size={16} />
                   ) : (
                     <ChevronRight size={16} />
@@ -101,19 +153,13 @@ export default function Sidebar({ onSelect }: SidebarProps) {
                 </>
               )}
             </button>
-            {!isCollapsed && openMenus.categories && (
+            {!isCollapsed && openMenus.reports && (
               <div className="mt-1 space-y-1 pl-7">
                 <button
-                  onClick={() => onSelect("categories-create")}
+                  onClick={() => onSelect("gifts")}
                   className="block w-full text-left text-sm text-gray-700 hover:text-black"
                 >
-                  ➕ Create Category
-                </button>
-                <button
-                  onClick={() => onSelect("categories-all")}
-                  className="block w-full text-left text-sm text-gray-700 hover:text-black"
-                >
-                  📋 All Categories
+                  - Gifts
                 </button>
               </div>
             )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation"; // ← for App Router
+import { useRouter } from "next/navigation";
 import { LogOutIcon, Settings, UserPenIcon, ShieldUser } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
@@ -15,14 +15,24 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { signOut } from "next-auth/react";
+
+// Update the type to include username
 type InfoType = {
   name: string | null;
   email: string | null;
+  username: string | null; // <--- Add this
   image: string | null;
   role: string | null;
 };
+
 export default function UserMenu({ info }: { info: InfoType }) {
   const router = useRouter();
+
+  // Construct the profile link dynamically
+  const profileLink = info.username ? `/${info.username}` : "/";
+  const editProfileLink = info.username
+    ? `/u/${info.username}?mode=edit`
+    : `/u/${info.username}`;
 
   return (
     <DropdownMenu>
@@ -59,7 +69,7 @@ export default function UserMenu({ info }: { info: InfoType }) {
               <span>Admin</span>
             </DropdownMenuItem>
           ) : null}
-          <DropdownMenuItem onClick={() => router.push("/profile")}>
+          <DropdownMenuItem onClick={() => router.push(editProfileLink)}>
             <UserPenIcon size={16} className="opacity-60" aria-hidden="true" />
             <span>Profile</span>
           </DropdownMenuItem>

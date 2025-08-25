@@ -2,10 +2,12 @@
 
 import { useState, useMemo } from "react";
 import { api } from "~/trpc/react";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
+import loading from "~/animations/loading.json";
+import Lottie from "lottie-react";
 import {
   Dialog,
   DialogContent,
@@ -21,9 +23,12 @@ import {
   TableHeader,
   TableRow,
 } from "~/components/ui/table";
+import { CreateCategoryForm } from "./CreateCategories";
+
 export default function CategoryListPage() {
   const { data: categories = [], isLoading } = api.category.getAll.useQuery();
   const utils = api.useUtils();
+
   const deleteCategory = api.category.delete.useMutation({
     onSuccess: () => utils.category.getAll.invalidate(),
   });
@@ -31,16 +36,32 @@ export default function CategoryListPage() {
   const updateCategory = api.category.update.useMutation({
     onSuccess: () => {
       utils.category.getAll.invalidate();
-      setEditDialog({ open: false, id: "", name: "" });
+      setEditDialog({
+        open: false,
+        id: "",
+        name: "",
+        imageFile: null,
+        imagePreview: null,
+      });
     },
   });
 
   const [search, setSearch] = useState("");
   const [sortAsc, setSortAsc] = useState(true);
-  const [editDialog, setEditDialog] = useState({
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+
+  const [editDialog, setEditDialog] = useState<{
+    open: boolean;
+    id: string;
+    name: string;
+    imageFile: File | null;
+    imagePreview: string | null;
+  }>({
     open: false,
     id: "",
     name: "",
+    imageFile: null,
+    imagePreview: null,
   });
 
   const filtered = useMemo(() => {
@@ -60,7 +81,27 @@ export default function CategoryListPage() {
 
   const handleUpdate = () => {
     if (editDialog.name.trim() === "") return toast.error("Name required");
-    updateCategory.mutate({ id: editDialog.id, name: editDialog.name });
+
+    updateCategory.mutate({
+      id: editDialog.id,
+      name: editDialog.name,
+      image: editDialog.imagePreview ?? undefined, // Send preview as image URL
+    });
+  };
+
+  const handleEditImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEditDialog((prev) => ({
+          ...prev,
+          imageFile: file,
+          imagePreview: reader.result as string, // base64 string
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   return (
@@ -71,12 +112,18 @@ export default function CategoryListPage() {
         <Input
           placeholder="Search category..."
           value={search}
-          onChange={(e: any) => setSearch(e.target.value)}
+          onChange={(e) => setSearch(e.target.value)}
           className="max-w-sm bg-amber-50"
         />
-        <Button variant="outline" onClick={() => setSortAsc((s) => !s)}>
-          Sort {sortAsc ? "A→Z" : "Z→A"}
-        </Button>
+        <div className="space-x-2">
+          <Button variant="outline" onClick={() => setSortAsc((s) => !s)}>
+            Sort {sortAsc ? "A→Z" : "Z→A"}
+          </Button>
+          <Button onClick={() => setCreateDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Category
+          </Button>
+        </div>
       </div>
 
       <div className="w-full overflow-x-auto rounded-lg border bg-amber-50 shadow-sm">
@@ -88,45 +135,73 @@ export default function CategoryListPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((cat) => (
-              <TableRow key={cat.id}>
-                <TableCell>{cat.name}</TableCell>
-                <TableCell className="space-x-2 text-right">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() =>
-                      setEditDialog({ open: true, id: cat.id, name: cat.name })
-                    }
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => handleDelete(cat.id)}
-                  >
-                    <Trash2 className="h-4 w-4 text-red-500" />
-                  </Button>
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={2}>
+                  <div className="flex items-center justify-center py-8">
+                    <Lottie
+                      animationData={loading}
+                      className="h-32 w-32"
+                      loop
+                      autoplay
+                    />
+                  </div>
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              filtered.map((cat) => (
+                <TableRow key={cat.id}>
+                  <TableCell className="flex items-center gap-3">
+                    {cat.image && (
+                      <img
+                        src={cat.image}
+                        alt={cat.name}
+                        className="h-10 w-10 rounded object-cover"
+                      />
+                    )}
+                    <span>{cat.name}</span>
+                  </TableCell>
+                  <TableCell className="space-x-2 text-right">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() =>
+                        setEditDialog({
+                          open: true,
+                          id: cat.id,
+                          name: cat.name,
+                          imageFile: null,
+                          imagePreview: cat.image ?? null,
+                        })
+                      }
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => handleDelete(cat.id)}
+                    >
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
-        {filtered.length === 0 && (
-          <div className="py-6 text-center text-gray-500">No results found</div>
-        )}
       </div>
 
-      {/* Edit Modal */}
+      {/* Edit Category Dialog */}
       <Dialog
         open={editDialog.open}
-        onOpenChange={(open) => setEditDialog({ ...editDialog, open })}
+        onOpenChange={(open) => setEditDialog((prev) => ({ ...prev, open }))}
       >
         <DialogContent className="bg-amber-50">
           <DialogHeader>
             <DialogTitle>Edit Category</DialogTitle>
           </DialogHeader>
+
           <Input
             value={editDialog.name}
             onChange={(e) =>
@@ -134,11 +209,58 @@ export default function CategoryListPage() {
             }
             placeholder="Category name"
           />
+
+          <div>
+            <Input
+              type="file"
+              accept="image/*"
+              onChange={handleEditImageChange}
+            />
+            {editDialog.imagePreview && (
+              <div className="mt-2 flex items-center gap-4">
+                <img
+                  src={editDialog.imagePreview}
+                  alt="Preview"
+                  className="h-24 w-24 rounded border object-cover"
+                />
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={() =>
+                    setEditDialog((prev) => ({
+                      ...prev,
+                      imageFile: null,
+                      imagePreview: null,
+                    }))
+                  }
+                >
+                  <X></X>
+                </Button>
+              </div>
+            )}
+          </div>
+
           <DialogFooter className="mt-4">
             <Button onClick={handleUpdate} disabled={updateCategory.isPending}>
               {updateCategory.isPending ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Category Dialog */}
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent className="bg-amber-50">
+          <DialogHeader>
+            <DialogTitle>Create New Category</DialogTitle>
+          </DialogHeader>
+          <CreateCategoryForm
+            onCreated={() => {
+              setCreateDialogOpen(false);
+              utils.category.getAll.invalidate();
+            }}
+          />
         </DialogContent>
       </Dialog>
     </div>

@@ -1,57 +1,90 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { api } from "~/trpc/react"; // adjust to your tRPC hook location
+import { toast } from "sonner";
+import { api } from "~/trpc/react";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
+import { Button } from "~/components/ui/button";
 
-export default function CreateCategoryPage() {
-  const router = useRouter();
+type Props = {
+  onCreated: () => void;
+};
+
+export function CreateCategoryForm({ onCreated }: Props) {
   const [name, setName] = useState("");
-  const [loading, setLoading] = useState(false);
-  const createCategory = api.category.create.useMutation(); // assumes you have this
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  const createCategory = api.category.create.useMutation();
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImageFile(file);
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string); // base64 string
+    };
+    reader.readAsDataURL(file); // ✅ this gives base64
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    if (!name.trim()) {
+      toast.error("Category name is required");
+      return;
+    }
+
+    // 👇 simulate image uploading — replace with real upload logic
+    let imageUrl: string | undefined;
+    if (imageFile) {
+      imageUrl = imagePreview ?? undefined;
+      // In production, you'd upload to Cloudinary, S3, etc., and get the real URL.
+    }
 
     try {
-      await createCategory.mutateAsync({ name });
-      alert("created");
+      await createCategory.mutateAsync({ name, image: imageUrl });
+      toast.success("Category created");
       setName("");
+      setImageFile(null);
+      setImagePreview(null);
+      onCreated();
     } catch (error) {
-      console.error("Error creating category", error);
-      alert("Something went wrong!");
-    } finally {
-      setLoading(false);
+      console.error(error);
+      toast.error("Failed to create category");
     }
   };
 
   return (
-    <div className="mx-auto mt-10 max-w-md rounded border bg-amber-50 p-4 shadow">
-      <h1 className="mb-4 text-xl font-semibold">Create New Category</h1>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <Label className="block text-sm font-medium text-gray-700">
-            Name
-          </Label>
-          <Input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-            className="mt-1 block w-full rounded border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm"
+    <form onSubmit={handleSubmit} className="mt-2 space-y-4">
+      <div>
+        <Label>Name</Label>
+        <Input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+        />
+      </div>
+
+      <div>
+        <Label>Image</Label>
+        <Input type="file" accept="image/*" onChange={handleImageChange} />
+        {imagePreview && (
+          <img
+            src={imagePreview}
+            alt="Preview"
+            className="mt-2 h-24 w-24 rounded object-cover"
           />
-        </div>
-        <button
-          type="submit"
-          disabled={loading}
-          className="rounded bg-black px-4 py-2 text-white hover:bg-gray-800"
-        >
-          {loading ? "Creating..." : "Create Category"}
-        </button>
-      </form>
-    </div>
+        )}
+      </div>
+
+      <Button type="submit" disabled={createCategory.isPending}>
+        {createCategory.isPending ? "Creating..." : "Create"}
+      </Button>
+    </form>
   );
 }

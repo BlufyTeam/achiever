@@ -106,10 +106,10 @@ export default function NotificationMenu() {
         <Button
           size="icon"
           variant="ghost"
-          className="text-muted-foreground relative size-8 rounded-full shadow-none"
+          className="text-muted-foreground bg-secondary relative size-8 rounded-full shadow-none"
           aria-label="Open notifications"
         >
-          <BellIcon size={16} aria-hidden="true" />
+          <BellIcon size={34} aria-hidden="true" />
           {unreadCount > 0 && (
             <div
               aria-hidden="true"

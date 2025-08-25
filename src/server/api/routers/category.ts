@@ -22,12 +22,14 @@ export const categoryRouter = createTRPCRouter({
     .input(
       z.object({
         name: z.string().min(1),
+        image: z.string().url().optional(), // ✅ Add image input
       }),
     )
     .mutation(async ({ input, ctx }) => {
       return ctx.db.category.create({
         data: {
           name: input.name,
+          image: input.image ?? null, // ✅ Set image if provided
         },
       });
     }),
@@ -38,6 +40,7 @@ export const categoryRouter = createTRPCRouter({
       z.object({
         id: z.string().cuid(),
         name: z.string().min(1),
+        image: z.string().url().optional(), // ✅ Add image input
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -45,6 +48,7 @@ export const categoryRouter = createTRPCRouter({
         where: { id: input.id },
         data: {
           name: input.name,
+          image: input.image ?? null, // ✅ Update image
         },
       });
     }),

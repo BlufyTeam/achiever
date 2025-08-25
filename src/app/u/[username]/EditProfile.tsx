@@ -1,24 +1,34 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import type { ChangeEvent } from "react";
+import { useState, useRef, useEffect, type ChangeEvent } from "react";
 import { Pen } from "lucide-react";
 import { api } from "~/trpc/react";
-import ErrorLabel from "../_components/origin/ErrorLabel";
+import ErrorLabel from "../../_components/origin/ErrorLabel";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
+import { useIsMobile } from "../../Utils/useIsMobile";
+const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,30}$/;
 
-export default function ProfilePage() {
-  const updateUser = api.signup.updateUser.useMutation();
+type UpdateState = {
+  onUpdateSuccess: () => void;
+  mode: string;
+};
+export default function EditProfilePage({
+  onUpdateSuccess,
+  mode,
+}: UpdateState) {
+  const isMobile = useIsMobile();
+  const updateUser = api.user.updateUser.useMutation();
   const {
     data: userData,
     isLoading: isUserLoading,
     refetch,
-  } = api.signup.getCurrentUser.useQuery();
+  } = api.user.getCurrentUser.useQuery();
 
+  const [username, setUsername] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [profileImage, setProfileImage] = useState<string>(
@@ -34,10 +44,13 @@ export default function ProfilePage() {
     "success",
   );
 
+  const [usernameError, setUsernameError] = useState<string>("");
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (userData) {
+      setUsername(userData.username ?? "");
       setName(userData.name ?? "");
       setEmail(userData.email ?? "");
       setProfileImage(userData.image || "/images/default.png");
@@ -57,12 +70,19 @@ export default function ProfilePage() {
     reader.readAsDataURL(file);
   };
 
-  const triggerFileSelect = () => {
-    fileInputRef.current?.click();
-  };
+  const triggerFileSelect = () => fileInputRef.current?.click();
 
   const handleProfileUpdate = async () => {
-    setFeedbackMsg(""); // Clear previous feedback
+    setFeedbackMsg("");
+    setUsernameError("");
+
+    // Client-side username guard (mirrors server rules)
+    if (username && !USERNAME_REGEX.test(username)) {
+      setUsernameError(
+        "Username must be 3–30 chars (letters, numbers, underscore).",
+      );
+      return;
+    }
 
     if (newPassword && newPassword !== confirmNewPassword) {
       setFeedbackType("error");
@@ -72,33 +92,41 @@ export default function ProfilePage() {
 
     try {
       await updateUser.mutateAsync({
+        username: username || undefined,
         name,
         email,
-        image: profileImage, // Still using empty unless you persist uploaded base64
+        image: profileImage, // NOTE: you’ll likely want to upload and save a URL instead of base64
         currentPassword: currentPassword || undefined,
         newPassword: newPassword || undefined,
       });
 
-      await refetch(); // Refresh user data from DB
+      await refetch();
       setFeedbackType("success");
       setFeedbackMsg("Profile updated successfully!");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmNewPassword("");
+      onUpdateSuccess();
     } catch (error: any) {
       const zodErrors = error?.data?.zodError?.fieldErrors;
       const firstErrorMsg =
+        zodErrors?.username?.[0] ||
         zodErrors?.newPassword?.[0] ||
         zodErrors?.currentPassword?.[0] ||
         zodErrors?.email?.[0] ||
         zodErrors?.name?.[0] ||
         zodErrors?.image?.[0] ||
         error?.shape?.message ||
-        error.message ||
+        error?.message ||
         "Something went wrong!";
 
-      setFeedbackType("error");
-      setFeedbackMsg(firstErrorMsg);
+      // Surface username-specific errors under the username field
+      if (firstErrorMsg.toLowerCase().includes("username")) {
+        setUsernameError(firstErrorMsg);
+      } else {
+        setFeedbackType("error");
+        setFeedbackMsg(firstErrorMsg);
+      }
     }
   };
 
@@ -147,10 +175,33 @@ export default function ProfilePage() {
         <CardContent className="space-y-6">
           <ErrorLabel
             msg={feedbackMsg}
-            show={feedbackMsg !== ""}
+            show={!!feedbackMsg}
             type={feedbackType}
           />
 
+          {/* Username */}
+          <div className="space-y-2">
+            <Label htmlFor="username">Username</Label>
+            <Input
+              id="username"
+              type="text"
+              value={username}
+              autoComplete="username"
+              onChange={(e) => {
+                setUsername(e.target.value.trimStart()); // avoid leading spaces
+                if (usernameError) setUsernameError("");
+              }}
+              placeholder="your_username"
+            />
+            {usernameError && (
+              <ErrorLabel msg={usernameError} show type="error" />
+            )}
+            <p className="text-muted-foreground text-xs">
+              3–30 chars. Letters, numbers, and underscore only.
+            </p>
+          </div>
+
+          {/* Full Name */}
           <div className="space-y-2">
             <Label htmlFor="name">Full Name</Label>
             <Input
@@ -158,9 +209,11 @@ export default function ProfilePage() {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              autoComplete="name"
             />
           </div>
 
+          {/* Email */}
           <div className="space-y-2">
             <Label htmlFor="email">Email Address</Label>
             <Input
@@ -168,9 +221,11 @@ export default function ProfilePage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
             />
           </div>
 
+          {/* Passwords */}
           <div className="space-y-2 border-t border-gray-300 pt-4 dark:border-gray-700">
             <Label htmlFor="currentPassword">Current Password</Label>
             <Input
@@ -214,6 +269,9 @@ export default function ProfilePage() {
             >
               {updateUser.isPending ? "Updating..." : "Update Profile"}
             </Button>
+            {mode == "edit" ? null : (
+              <Button onClick={onUpdateSuccess}>Cancel</Button>
+            )}
           </div>
         </CardContent>
       </Card>

@@ -1,11 +1,15 @@
 "use client";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
-import NavBar from "../_components/NavBar";
 import Sidebar from "../_components/admin/Sidebar";
-import CreateCategoryPage from "./_pages/CreateCategories";
 import CategoryListPage from "./_pages/CategoriesList";
 import { useRouter } from "next/navigation";
+import CreateMedalPage from "./_pages/CreateMedal";
+import MedalsPage from "./_pages/Medals";
+import CreateUserPage from "./_pages/CreateUser";
+import UsersPage from "./_pages/Users";
+import CollectionsPage from "./_pages/collections";
+import GiftListPage from "./_pages/gifts";
 
 export default function AdminPage() {
   const { data: session, status } = useSession();
@@ -21,10 +25,18 @@ export default function AdminPage() {
 
   const renderPage = () => {
     switch (selectedPage) {
-      case "categories-create":
-        return <CreateCategoryPage />;
       case "categories-all":
         return <CategoryListPage />;
+      case "medals-create":
+        return <CreateMedalPage />;
+      case "medals-all":
+        return <MedalsPage />;
+      case "users-all":
+        return <UsersPage />;
+      case "collection":
+        return <CollectionsPage />;
+      case "gifts":
+        return <GiftListPage></GiftListPage>;
       default:
         return <p className="text-5xl text-amber-50">welcome to admin page</p>;
     }
