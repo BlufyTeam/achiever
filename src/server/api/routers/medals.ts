@@ -373,4 +373,19 @@ export const medalRouter = createTRPCRouter({
       });
       return !!trackedMedal;
     }),
+  search: publicProcedure
+    .input(z.object({ q: z.string().min(1) }))
+    .query(async ({ input, ctx }) => {
+      return ctx.db.medal.findMany({
+        where: {
+          name: { contains: input.q, mode: Prisma.QueryMode.insensitive },
+        },
+        select: {
+          id: true,
+          name: true,
+          image: true,
+        },
+        take: 5,
+      });
+    }),
 });

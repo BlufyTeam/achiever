@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { api } from "~/trpc/react";
 import {
@@ -25,6 +25,7 @@ import {
   TooltipTrigger,
 } from "~/components/ui/tooltip";
 import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
 import {
   ArrowLeft,
   CircleCheck,
@@ -71,10 +72,7 @@ function VouchesList({ userId, medalId }: { userId: string; medalId: string }) {
 
   return (
     <div className="mt-4 border-t pt-4">
-      <h4 className="mb-2 text-center text-lg font-semibold text-gray-800">
-        Vouched by:
-      </h4>
-      <div className="flex flex-wrap justify-center gap-2">
+      <div className="flex flex-wrap gap-2">
         {vouches.map((vouch) => (
           <div
             key={vouch.id}
@@ -271,15 +269,17 @@ function TrackButton({
 function GiftButton({
   medalId,
   isLoading,
+  setGiftDialogOpen,
 }: {
   medalId: string;
   isLoading: boolean;
+  setGiftDialogOpen: (open: boolean) => void;
 }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
-          onClick={() => {}} // Non-functional button
+          onClick={() => setGiftDialogOpen(true)}
           disabled={isLoading}
           variant="outline"
           className="space-x-2"
@@ -289,6 +289,260 @@ function GiftButton({
       </TooltipTrigger>
       <TooltipContent>This medal can only be gifted.</TooltipContent>
     </Tooltip>
+  );
+}
+
+// ==================== GiftDialog Component ====================
+function GiftDialog({
+  medalId,
+  open,
+  setOpen,
+}: {
+  medalId: string;
+  open: boolean;
+  setOpen: (open: boolean) => void;
+}) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [giftStatus, setGiftStatus] = useState<{
+    status: "idle" | "success" | "error" | "already-owned";
+    message?: string;
+  }>({ status: "idle" });
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [followings, setFollowings] = useState<
+    {
+      id: string;
+      name: string | null;
+      username: string;
+      image: string | null;
+    }[]
+  >([]);
+  const limit = 10;
+
+  const utils = api.useUtils();
+  const { data: currentUser } = api.user.getCurrentUser.useQuery();
+  const { data: followingsData, isLoading: isFollowingsLoading } =
+    api.follow.getFollowing.useQuery(
+      { userId: currentUser?.id ?? "", cursor, limit },
+      { enabled: !!currentUser?.id && open },
+    );
+
+  const giftMedalMutation = api.gift.giftMedal.useMutation({
+    onSuccess: () => {
+      setGiftStatus({ status: "success", message: "Gift sent successfully!" });
+      utils.gift.getSentGifts.invalidate();
+    },
+    onError: (error) => {
+      setGiftStatus({ status: "error", message: error.message });
+    },
+  });
+
+  // State to track the user being checked for medal ownership
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const { data: hasMedal, isLoading: isCheckingMedal } =
+    api.userMedal.getUserMedalStatus.useQuery(
+      { userId: selectedUserId ?? "", medalId },
+      { enabled: !!selectedUserId && !!medalId },
+    );
+
+  useEffect(() => {
+    if (followingsData?.following) {
+      setFollowings((prev) =>
+        cursor === null
+          ? followingsData.following.map((f) => f.following)
+          : [...prev, ...followingsData.following.map((f) => f.following)],
+      );
+    }
+  }, [followingsData, cursor]);
+
+  const filteredFollowings = useMemo(() => {
+    return followings.filter((user) =>
+      user.username.toLowerCase().includes(searchQuery.toLowerCase()),
+    );
+  }, [followings, searchQuery]);
+
+  const handleGift = async (giftedToId: string) => {
+    if (!currentUser) {
+      setGiftStatus({ status: "error", message: "You must be logged in." });
+      return;
+    }
+    if (giftedToId === currentUser.id) {
+      setGiftStatus({
+        status: "error",
+        message: "You cannot gift to yourself.",
+      });
+      return;
+    }
+
+    try {
+      // Call API directly to check if user already owns medal
+      const hasMedal = await utils.userMedal.getUserMedalStatus.fetch({
+        userId: giftedToId,
+        medalId,
+      });
+
+      if (hasMedal) {
+        setGiftStatus({
+          status: "already-owned",
+          message: "This user already has this medal.",
+        });
+        return;
+      }
+
+      giftMedalMutation.mutate({ medalId, giftedToId, message: "" });
+    } catch (err) {
+      setGiftStatus({ status: "error", message: "Something went wrong." });
+    }
+  };
+
+  const hasNextPage = followingsData?.nextCursor !== undefined;
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(isOpen) => {
+        setOpen(isOpen);
+        if (!isOpen) {
+          setSearchQuery("");
+          setGiftStatus({ status: "idle" });
+          setCursor(null);
+          //setFollowings([]);
+          setSelectedUserId(null);
+        }
+      }}
+    >
+      <DialogContent className="bg-white">
+        <DialogHeader>
+          <DialogTitle>Gift Medal</DialogTitle>
+          <DialogDescription>
+            Select a user from your followings to gift this medal to.
+          </DialogDescription>
+        </DialogHeader>
+        {giftStatus.status === "success" ? (
+          <div className="py-4 text-center text-green-600">
+            {giftStatus.message}
+            <div className="mt-4">
+              <Button onClick={() => setOpen(false)}>Close</Button>
+            </div>
+          </div>
+        ) : giftStatus.status === "already-owned" ||
+          giftStatus.status === "error" ? (
+          <div
+            className={`py-4 text-center ${
+              giftStatus.status === "already-owned"
+                ? "text-orange-600"
+                : "text-red-500"
+            }`}
+          >
+            {giftStatus.message}
+            <div className="mt-4">
+              <Button onClick={() => setGiftStatus({ status: "idle" })}>
+                Try Another User
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setOpen(false)}
+                className="ml-2"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <Input
+              placeholder="Search followings..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="mb-4"
+            />
+            {isFollowingsLoading && cursor === null ? (
+              <div className="flex items-center justify-center py-4">
+                <Lottie
+                  animationData={loading}
+                  className="h-8 w-8"
+                  loop
+                  autoplay
+                />
+              </div>
+            ) : filteredFollowings.length === 0 ? (
+              <p className="text-center text-gray-500">
+                {searchQuery
+                  ? "No followings match your search."
+                  : "You are not following anyone."}
+              </p>
+            ) : (
+              <ul className="max-h-60 space-y-2 overflow-y-auto">
+                {filteredFollowings.map((user) => (
+                  <li
+                    key={user.id}
+                    className="flex cursor-pointer items-center justify-between rounded p-2 hover:bg-gray-100"
+                    onClick={() => handleGift(user.id)}
+                  >
+                    <div className="flex items-center space-x-2">
+                      {user.image ? (
+                        <img
+                          src={user.image}
+                          alt={user.username}
+                          className="h-8 w-8 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-300 text-xs text-gray-600">
+                          ?
+                        </div>
+                      )}
+                      <span className="text-sm">{user.username}</span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={
+                        giftMedalMutation.isPending ||
+                        (isCheckingMedal && selectedUserId === user.id)
+                      }
+                    >
+                      {giftMedalMutation.isPending &&
+                      giftMedalMutation.variables?.giftedToId === user.id ? (
+                        <Lottie
+                          animationData={loading}
+                          className="h-5 w-5"
+                          loop
+                          autoplay
+                        />
+                      ) : isCheckingMedal && selectedUserId === user.id ? (
+                        <Lottie
+                          animationData={loading}
+                          className="h-5 w-5"
+                          loop
+                          autoplay
+                        />
+                      ) : (
+                        "Gift"
+                      )}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {hasNextPage && !searchQuery && (
+              <div className="mt-4 text-center">
+                <Button
+                  onClick={() => setCursor(followingsData?.nextCursor ?? null)}
+                  disabled={isFollowingsLoading}
+                  variant="ghost"
+                >
+                  Load More
+                </Button>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -352,7 +606,7 @@ function AddRemoveButton({
     medal?.status === "UNAVAILABLE" ||
     (medal?.status === "GIFT_ONLY" && !isCurrentUserOwned)
   ) {
-    return null; // No button for UNAVAILABLE or non-owned GIFT_ONLY medals
+    return null;
   }
 
   return (
@@ -378,8 +632,17 @@ export default function UserMedalPage() {
   const username = params.username as string;
   const medalId = params.usermedalId as string;
   const utils = api.useUtils();
+
+  // --- Delete dialog state ---
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMedalId, setDialogMedalId] = useState<string | null>(null);
+
+  // --- Vouch dialog state ---
+  const [vouchDialogOpen, setVouchDialogOpen] = useState(false);
+  const [vouchMedalId, setVouchMedalId] = useState<string | null>(null);
+
+  // --- Gift dialog state ---
+  const [giftDialogOpen, setGiftDialogOpen] = useState(false);
 
   // --- Fetch user ---
   const { data: user, isLoading: isUserLoading } = api.user.getUser.useQuery(
@@ -427,7 +690,7 @@ export default function UserMedalPage() {
     onSuccess: () => refetchCompletedTasks(),
   });
 
-  // --- Delete mutation for confirmation dialog ---
+  // --- Delete mutation ---
   const deleteUserMedalMutation = api.userMedal.deleteUserMedal.useMutation({
     onSuccess: () => {
       utils.userMedal.getUserMedalStatus.invalidate();
@@ -436,12 +699,15 @@ export default function UserMedalPage() {
       setDialogMedalId(null);
     },
   });
+
+  // --- Add mutation ---
   const addUserMedalMutation = api.userMedal.addUserMedal.useMutation({
     onSuccess: () => {
       utils.userMedal.getUserMedalStatus.invalidate();
       utils.trackMedal.isTracked.invalidate();
     },
   });
+
   const isButtonLoading =
     isOwnedLoading ||
     isMedalLoading ||
@@ -483,11 +749,11 @@ export default function UserMedalPage() {
           </Button>
         </div>
 
-        <h2 className="mb-8 text-center text-4xl font-extrabold text-gray-900">
-          {user.name ?? username}'s Medal
-        </h2>
+        <h3 className="mb-8 text-center text-4xl font-extrabold text-gray-900">
+          {user.username ?? username}'s Medal
+        </h3>
 
-        <div className="relative w-full max-w-sm rounded-lg border bg-white p-6 shadow transition hover:shadow-md">
+        <div className="relative mt-5 w-full max-w-sm rounded-lg border bg-white p-6 shadow transition hover:shadow-md">
           <div className="top-2 right-2 flex justify-between space-x-2">
             {userMedal.medal.status === "EARNABLE" && (
               <TrackButton
@@ -502,6 +768,7 @@ export default function UserMedalPage() {
               <GiftButton
                 medalId={userMedal.medal.id}
                 isLoading={isButtonLoading}
+                setGiftDialogOpen={setGiftDialogOpen}
               />
             )}
             <AddRemoveButton
@@ -546,8 +813,8 @@ export default function UserMedalPage() {
               variant="outline"
               size="sm"
               onClick={() => {
-                setDialogMedalId(userMedal.medal.id);
-                setDialogOpen(true);
+                setVouchMedalId(userMedal.medal.id);
+                setVouchDialogOpen(true);
               }}
               aria-label="Show who vouched"
               className="text-black hover:text-white"
@@ -559,67 +826,84 @@ export default function UserMedalPage() {
             </Button>
           </div>
 
-          <p className="mt-auto text-center text-xs text-gray-500">
-            Earned on: {new Date(userMedal.earnedAt).toLocaleDateString()}
-          </p>
-
           <TasksList
-            tasks={userMedal.medal.tasks}
+            tasks={userMedal.medal.tasks ?? []}
             completedTasks={completedTasks}
             markTaskMutation={markTaskMutation}
             unmarkTaskMutation={unmarkTaskMutation}
             isOwner={isOwner}
           />
 
-          <VouchesList userId={user.id} medalId={userMedal.medal.id} />
+          <p className="mt-4 text-center text-xs text-gray-500">
+            Earned on:{" "}
+            {new Date(userMedal.earnedAt).toLocaleDateString("en-US", {
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+            })}
+          </p>
         </div>
-      </div>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="bg-amber-50">
-          <DialogHeader>
-            <DialogTitle>Confirm Removal</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to remove this medal from your collection?
-              This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setDialogOpen(false);
-                setDialogMedalId(null);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                if (dialogMedalId && currentUser?.id) {
-                  deleteUserMedalMutation.mutate({
-                    userId: currentUser.id,
-                    medalId: dialogMedalId,
-                  });
-                }
-              }}
-              disabled={deleteUserMedalMutation.isPending}
-            >
-              {deleteUserMedalMutation.isPending ? (
-                <Lottie
-                  animationData={loading}
-                  className="h-6 w-6"
-                  loop
-                  autoplay
-                />
-              ) : (
-                "Remove"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        {/* Delete confirmation dialog */}
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogContent className="bg-amber-50">
+            <DialogHeader>
+              <DialogTitle>Confirm Removal</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to remove this medal from your collection?
+                This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  if (dialogMedalId && currentUser?.id) {
+                    deleteUserMedalMutation.mutate({
+                      userId: currentUser.id,
+                      medalId: dialogMedalId,
+                    });
+                  }
+                }}
+                disabled={deleteUserMedalMutation.isPending}
+              >
+                {deleteUserMedalMutation.isPending ? (
+                  <Lottie
+                    animationData={loading}
+                    className="h-6 w-6"
+                    loop
+                    autoplay
+                  />
+                ) : (
+                  "Remove"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Vouches dialog */}
+        <Dialog open={vouchDialogOpen} onOpenChange={setVouchDialogOpen}>
+          <DialogContent className="bg-white">
+            <DialogHeader>
+              <DialogTitle>Vouches</DialogTitle>
+            </DialogHeader>
+            {vouchMedalId && (
+              <VouchesList userId={user.id} medalId={vouchMedalId} />
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Gift dialog */}
+        <GiftDialog
+          medalId={userMedal.medal.id}
+          open={giftDialogOpen}
+          setOpen={setGiftDialogOpen}
+        />
+      </div>
     </DialogContext.Provider>
   );
 }

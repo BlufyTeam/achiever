@@ -275,4 +275,32 @@ export const userRouter = createTRPCRouter({
         role: updatedUser.role,
       };
     }),
+  search: publicProcedure
+    .input(
+      z.object({
+        q: z.string().min(1), // at least 1 character
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      return ctx.db.user.findMany({
+        where: {
+          OR: [
+            {
+              username: {
+                contains: input.q,
+                mode: Prisma.QueryMode.insensitive,
+              },
+            },
+            { name: { contains: input.q, mode: Prisma.QueryMode.insensitive } },
+          ],
+        },
+        select: {
+          id: true,
+          username: true,
+          name: true,
+          image: true,
+        },
+        take: 10, // limit results
+      });
+    }),
 });

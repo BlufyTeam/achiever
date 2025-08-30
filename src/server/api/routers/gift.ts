@@ -1,11 +1,9 @@
-// server/api/routers/gift.ts
 import { z } from "zod";
 import {
   createTRPCRouter,
   protectedProcedure,
   publicProcedure,
 } from "~/server/api/trpc";
-import { GiftStatus } from "@prisma/client";
 
 export const giftRouter = createTRPCRouter({
   // Send a medal to another user
@@ -44,19 +42,15 @@ export const giftRouter = createTRPCRouter({
           giftedById,
           giftedToId,
           message,
-          status: GiftStatus.PENDING,
         },
       });
     }),
 
-  // Get all medals received (pending)
+  // Get all medals received (only pending)
   getReceivedGifts: protectedProcedure.query(async ({ ctx }) => {
     const userId = ctx.session.user.id;
     return ctx.db.giftedMedal.findMany({
-      where: {
-        giftedToId: userId,
-        status: GiftStatus.PENDING,
-      },
+      where: { giftedToId: userId },
       include: {
         medal: true,
         giftedBy: { select: { id: true, username: true, image: true } },
@@ -68,9 +62,7 @@ export const giftRouter = createTRPCRouter({
   getSentGifts: protectedProcedure.query(async ({ ctx }) => {
     const userId = ctx.session.user.id;
     return ctx.db.giftedMedal.findMany({
-      where: {
-        giftedById: userId,
-      },
+      where: { giftedById: userId },
       include: {
         medal: true,
         giftedTo: { select: { id: true, username: true, image: true } },
@@ -78,7 +70,7 @@ export const giftRouter = createTRPCRouter({
     });
   }),
 
-  // Accept a gift and turn it into a UserMedal
+  // Accept a gift (creates UserMedal, then deletes the gift)
   acceptGift: protectedProcedure
     .input(z.object({ giftId: z.string() }))
     .mutation(async ({ ctx, input }) => {
@@ -91,8 +83,6 @@ export const giftRouter = createTRPCRouter({
       if (!gift) throw new Error("Gift not found.");
       if (gift.giftedToId !== userId)
         throw new Error("You are not authorized to accept this gift.");
-      if (gift.status !== GiftStatus.PENDING)
-        throw new Error("Gift is no longer pending.");
 
       // Create UserMedal if not already exists
       const alreadyHasMedal = await ctx.db.userMedal.findUnique({
@@ -115,16 +105,15 @@ export const giftRouter = createTRPCRouter({
         });
       }
 
-      return ctx.db.giftedMedal.update({
+      // Delete the gift after acceptance
+      await ctx.db.giftedMedal.delete({
         where: { id: input.giftId },
-        data: {
-          status: GiftStatus.ACCEPTED,
-          acceptedAt: new Date(),
-        },
       });
+
+      return { success: true };
     }),
 
-  // Reject a gift
+  // Reject a gift (just deletes it)
   rejectGift: protectedProcedure
     .input(z.object({ giftId: z.string() }))
     .mutation(async ({ ctx, input }) => {
@@ -137,22 +126,40 @@ export const giftRouter = createTRPCRouter({
       if (!gift) throw new Error("Gift not found.");
       if (gift.giftedToId !== userId)
         throw new Error("You are not authorized to reject this gift.");
-      if (gift.status !== GiftStatus.PENDING)
-        throw new Error("Gift is no longer pending.");
 
-      return ctx.db.giftedMedal.update({
+      await ctx.db.giftedMedal.delete({
         where: { id: input.giftId },
-        data: {
-          status: GiftStatus.REJECTED,
-        },
+      });
+
+      return { success: true };
+    }),
+
+  // Sender can cancel (delete) their own pending gift
+  deleteGift: protectedProcedure
+    .input(z.object({ giftId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const userId = ctx.session.user.id;
+
+      const gift = await ctx.db.giftedMedal.findUnique({
+        where: { id: input.giftId },
+      });
+
+      if (!gift) throw new Error("Gift not found.");
+      if (gift.giftedById !== userId)
+        throw new Error("You are not authorized to delete this gift.");
+
+      return ctx.db.giftedMedal.delete({
+        where: { id: input.giftId },
       });
     }),
+
+  // Get all gifted medals (for public logs/admins)
   getAllGiftedMedals: publicProcedure
     .input(
       z.object({
         from: z.string().optional(),
         to: z.string().optional(),
-        user: z.string().optional(), // username of either sender or receiver
+        user: z.string().optional(),
         sort: z.enum(["asc", "desc"]).default("desc"),
       }),
     )
@@ -187,9 +194,7 @@ export const giftRouter = createTRPCRouter({
           giftedTo: true,
           medal: true,
         },
-        orderBy: {
-          createdAt: sort,
-        },
+        orderBy: { createdAt: sort },
       });
     }),
 });

@@ -126,4 +126,55 @@
   body {
     @apply bg-background text-foreground;
   }
+  .ptr--ptr {
+    pointer-events: none;
+    position: absolute;
+    top: -80px; /* Position above content */
+    left: 50%;
+    transform: translateX(-50%) translateY(-100%); /* Hide above viewport */
+    z-index: 10;
+    opacity: 0; /* Fully transparent */
+    visibility: hidden; /* Explicitly hide */
+    transition:
+      opacity 0.2s ease,
+      transform 0.2s ease,
+      visibility 0.2s ease;
+  }
+
+  /* Show indicator only when pulling or loading */
+  .ptr--ptr.ptr--pulling,
+  .ptr--ptr.ptr--loading {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* Explicitly hide loading unless ptr--loading is active */
+  .ptr--ptr:not(.ptr--loading) .ptr--loading {
+    display: none !important;
+  }
+
+  /* Show loading when ptr--loading is active */
+  .ptr--ptr.ptr--loading .ptr--loading {
+    display: block !important;
+  }
+
+  /* Style the icon */
+  .ptr--icon {
+    font-size: 24px;
+    color: #4b5563; /* Tailwind gray-600 */
+  }
+
+  /* Style the loading container */
+  .ptr--loading {
+    width: 56px; /* Match h-14 */
+    height: 56px; /* Match w-14 */
+    display: block;
+  }
+
+  /* Ensure Lottie animation is contained */
+  .ptr--loading .h-14.w-14 {
+    width: 56px;
+    height: 56px;
+  }
 }

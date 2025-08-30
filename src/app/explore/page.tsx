@@ -1,8 +1,11 @@
 "use client";
-import { signIn, signOut, useSession } from "next-auth/react";
-import { useEffect } from "react";
-import NavBar from "../_components/NavBar";
-import TabBar from "../_components/TabBar";
+
+import SearchInput from "../_features/SearchInput";
+
 export default function ExplorePage() {
-  return <div></div>;
+  return (
+    <div className="flex flex-col items-center p-6">
+      <SearchInput></SearchInput>
+    </div>
+  );
 }
