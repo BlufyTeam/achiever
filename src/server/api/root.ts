@@ -8,6 +8,7 @@ import { giftRouter } from "./routers/gift";
 import { followRouter } from "./routers/follow";
 import { userTaskRouter } from "./routers/userTask";
 import { trackedMedalRouter } from "./routers/trackedMedal";
+import { trackedCollectionRouter } from "./routers/trackedCollection";
 /**
  * This is the primary router for your server.
  *
@@ -23,6 +24,7 @@ export const appRouter = createTRPCRouter({
   follow: followRouter,
   userTask: userTaskRouter,
   trackMedal: trackedMedalRouter,
+  trackCollection: trackedCollectionRouter,
 });
 
 // export type definition of API

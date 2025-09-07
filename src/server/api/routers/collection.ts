@@ -113,4 +113,19 @@ export const collectionRouter = createTRPCRouter({
       await ctx.db.collection.delete({ where: { id: input.id } });
       return { ok: true };
     }),
+  getUserCollections: publicProcedure
+    .input(z.object({ userId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      return ctx.db.collection.findMany({
+        where: { ownerId: input.userId },
+        include: {
+          medals: {
+            include: { medal: true },
+          },
+          owner: true,
+          trackedBy: true,
+        },
+        orderBy: { createdAt: "desc" },
+      });
+    }),
 });

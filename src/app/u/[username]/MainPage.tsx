@@ -31,6 +31,8 @@ import TrackedMedalsPage from "~/app/_features/TrackedMedalsComponent";
 import { useRouter } from "next/navigation";
 import ReceivedGiftsPage from "~/app/_features/GiftsComponent";
 import PullToRefreshClientProvider from "~/app/Utils/ClientRefreshProvider";
+import CollectionsPage from "~/app/admin/_pages/collections";
+import UserCollectionsPage from "~/app/_features/CollectionsComponent";
 
 export default function ProfilePage({ username }: { username: string }) {
   const isMobile = useIsMobile();
@@ -685,7 +687,7 @@ export default function ProfilePage({ username }: { username: string }) {
             </TabsContent>
             <TabsContent value="collections">
               <div className="text-center text-gray-400">
-                <p>Collections feature coming soon...</p>
+                <UserCollectionsPage username={username}></UserCollectionsPage>
               </div>
             </TabsContent>
             <TabsContent value="tracks">
